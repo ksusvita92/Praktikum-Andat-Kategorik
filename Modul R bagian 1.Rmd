@@ -1,0 +1,120 @@
+---
+title: "Distribusi dan Inferensi untuk Data Kategorik"
+author: "Kurnia Susvitasari"
+date: "2024-08-28"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+<style type="text/css">
+  body{
+  font-size: 14pt;
+}
+</style>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Membangkitkan Variabel Acak dari Distribusi Multinomial
+
+Tentunya, bukan hal yang sulit bagi Anda untuk membangkitkan (bahkan mengevaluasi probabilitas/ probabilitas kumulatif/ quantil) dari variabel acak yang berdistribusi binomial. Namun, bagaimana dengan variabel acak yang berdistribusi multinomial?
+
+Tenang saja! R menyediakan build-in function di package `stats` dengan memanggil fungsi `rmultinom`. Selain itu, Anda juga bisa mengevaluasi pmf-nya menggunakan `dmultinom`.
+
+
+## Proporsi Vegetarian (Parameter Binomial)
+
+Contoh kasus ini merujuk pada buku Alan Agresti bab 1.4.3; baca [pg. 15, 1].
+
+Dalam sebuah kuesioner yang diberikan kepada kelas pengantar statistik $(n = 25)$, tidak ada siswa yang mengatakan mereka adalah vegetarian. Dengan asumsi bahwa jumlah yang merespons "ya" didistribusikan secara binomial dengan probabilitas keberhasilan $\pi$, berapakah interval kepercayaan 95% untuk $\pi$?
+
+Pertama, perhatikan bahwa $\hat{\pi}=0/25 = 0.$
+
+Dengan menggunakan Wald test, kita bisa menghitung interval kepercayaan dengan cara
+
+```{r wald ci}
+phat <- 0
+n <- 25
+
+# 95% interval kepercayaannya adalah
+phat + c(-1, 1) * qnorm(p = 0.975) * sqrt((phat * (1 - phat))/n)
+```
+
+Alternatif lain untuk menghitung interval kepercayaan Wald adalah dengan menggunakan fungsi `Hmisc::binconf` dengan argumen `method = "asymptotic"`.
+
+```{r wald ci 2, message=FALSE}
+library(Hmisc)
+binconf(x = 0, n = 25, method = "asymptotic")
+```
+
+
+
+Interval kepercayaan kedua adalah dengan menggunakan score test. Perhatikan bahwa interval kepercayaan skor mengandung nilai $\pi_0$ yang memenuhi $|S|<z_{.025}$ dimana $S$ diberikan di eq.(1.9). Selain itu, 
+endpoint dari interval tersebut harus merupakan solusi dari eq.(1.10). Kita bisa menggunakan R untuk mencari solusi dari eq.(1.10) menggunakan fungsi `optim`. Tapi, untuk saat ini, mari menggunakan build-in function `prop.test` atau `Hmisc::binconf` dengan argumen `method = "wilson"`.
+
+```{r score ci}
+# menggunakan prop.test
+score_ci <- prop.test(x = 0, n = 25, correct = F)
+score_ci$conf.int
+
+# menggunakan binconf
+binconf(x = 0, n = 25, method = "wilson")
+```
+
+
+
+Selanjutnya, kita akan menghitung interval kepercayaan likelihood-ratio (LR). Sebenarnya, kita bisa saja mencari akar dari eq.(1.13) secara analitik. Namun, R memberikan kemudahan dimana kita bisa menggunakan fungsi `optim` untuk mencari akarnya.
+
+Idenya adalah, kita ingin meminimumkan jarak kuadrat antara statistik LR dengan quantil $\chi^2_1(\alpha)$. *Jangan hanya running the code saja! Coba dimengerti!*
+
+
+Berdasarkan bab 1.4.3, diperoleh $-2(L_0-L_1)=-50 \log{(1-\pi_0)} < \chi^2_1(0.05)$. Maka,
+
+```{r lr ci}
+# fungsi objektif kita
+f <- function(x, chi2) (-50*log(1-x) - chi2)^2
+
+# interval kepercayaannya adalah
+result <- optim(par = .5, fn = f, chi2 = qchisq(.95, 1), method = "L-BFGS-B", lower = 0, upper = 1)
+result$par
+```
+
+
+
+## Menguji Teori Mendel (Parameter Multinomial)
+
+
+Sebagai ilustrasi untuk menguji hipotesis pada parameter distribusi multinomial menggunakan uji khi-kuadrat Pearson dan LR, kita akan menggunakan contoh Teori Mendel; baca bab 1.5.4 [pg.19, 1].
+
+Uji khi-kuadrat Pearson dapat dengan mudah dilakukan dengan memanggil fungsi `chisq.test`.
+
+```{r chisq pearson}
+chisq.test(x = c(6022,2001), p = c(.75,.25))
+```
+
+
+Bagaimana dengan uji khi-kuadrat LR?
+
+```{r chisq lr}
+obs <- c(6022, 2001)
+expected <- 8023 * c(0.75, 0.25)
+1-pchisq(2 * sum(obs * log(obs/expected)), df=1)
+```
+
+
+## Latihan
+
+1. Coba bangkitkan 10 variabel acak berdistribusi multinomial dengan $n=15$ dan $\boldsymbol{\pi}=\{.1, .2, .8\}$.
+2. Dari variabel acak yang Anda bangkitkan di no.1, cari pmf-nya untuk data ke-8.
+3. Misalkan $\hat{\pi}=.2$ pada contoh Proporsi Vegetarian. Konstruksilah 95% interval kepercayaan menggunakan a) Wald, b) skor, dan c) LR.
+4. Apakah interpretasi dari hasil luaran uji khi-kuadrat Pearson dan LR pada contoh Teori Mendel? 
+5. Mengapa hasil luaran uji khi-kuadrat Pearson dan LR sama? Dapatkah kita mengeneralisir untuk skenario lainnya?
+
+
+## Referensi
+1. Alan Agresti. Categorical Data Analysis, Third Edition. Wiley, 2013. 
+
